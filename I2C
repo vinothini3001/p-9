@@ -1,0 +1,148 @@
+#include <LPC17XX.H> 
+#include "GLCD.H" 
+#define PCF8574P 
+#define __FI 1 
+#ifdef PCF8574AP 
+#define U1 0x70 
+#define U2 0x72 
+#define U3 0x74 
+#define U4 0x76 
+#endif 
+#ifdef PCF8574P 
+#define U1 0x40 
+#define U2 0x42 
+#define U3 0x44 
+#define U4 0x46 
+#endif 
+void I2CWrite2402(unsigned char, unsigned char, unsigned char); 
+unsigned char I2CRead2402(unsigned char, unsigned char); 
+void LED_display(unsigned char, unsigned char); 
+void delay(void); 
+unsigned char Recv_Data[8], 
+Send_Data[8] =  
+{0x01,0x23,0x45,0x67,0x89,0xAB,0xCD,0xEF}; 
+\ 
+unsigned char lookup[0x10] = { 0xC0,0xF9,0xA4,0xB0,0x99, 
+0x92,0x82,0xF8,0x80,0x90, 
+0x88,0x83,0xC6,0xA1,0x86,0x8E}; 
+main() 
+{ 
+unsigned char i,k; 
+LPC_SC->PCONP|=(1<<15); 
+LPC_GPIO0->FIODIR = 3 << 27; 
+LPC_PINCON-> PINSEL1 |=0x01400000; /*  
+Select I2C0 by selecting SCL0 & SDA0 */ 
+LPC_I2C0-> I2SCLH = 0xC0; /* Set bit  
+rate PCLK/(I2CSCLH + I2CSCLL) */ 
+LPC_I2C0-> I2SCLL = 0xC0; 
+#define __USE_LCD 
+#ifdef __USE_LCD 
+GLCD_Init();  
+GLCD_Clear(White);  
+GLCD_SetBackColor(Blue); 
+GLCD_SetTextColor(White); 
+GLCD_DisplayString(0, 0, __FI, " ECE "); 
+GLCD_DisplayString(1, 0, __FI, " KRCE "); 
+GLCD_DisplayString(2, 0, __FI, " EMBEDDED LAB "); 
+GLCD_SetBackColor(White); 
+GLCD_SetTextColor(Blue); 
+GLCD_DisplayString(5, 0, __FI, " I2C EEPROM "); 
+#endif 
+while(1) 
+{ 
+LED_display(U1,0xFF); 
+LED_display(U2,0xFF); 
+LED_display(U3,0xFF); 
+LED_display(U4,0xFF); 
+I2CWrite2402(0xA0,0x00,0x08); 
+for(i=0x00; i<0x08; i++) 
+Recv_Data[i] = I2CRead2402(0xA1,i);  
+for(i=0x00; i<0x08; i++) 
+{ 
+k = Recv_Data[i] & 0x0F ; 
+LED_display(U4,lookup[k]);  
+k = (Recv_Data[i] & 0xF0) >> 4 ; 
+LED_display(U3,lookup[k]); 
+delay(); 
+} 
+} 
+} 
+void I2CWrite2402(unsigned char Slv_Addr, unsigned char wrd_adrs,unsigned  
+char no_locations) 
+{ 
+unsigned char k; 
+LPC_I2C0-> I2CONSET = 0x40; 
+LPC_I2C0-> I2CONSET = 0x20; 
+while(LPC_I2C0-> I2STAT != 0x08); 
+LPC_I2C0-> I2CONCLR = 0x20;  
+LPC_I2C0-> I2DAT = Slv_Addr;  
+LPC_I2C0-> I2CONCLR = 0x08;  
+while(LPC_I2C0-> I2STAT != 0x18); 
+LPC_I2C0-> I2DAT = wrd_adrs; 
+LPC_I2C0-> I2CONCLR = 0x08; 
+while(LPC_I2C0-> I2STAT != 0x28); 
+for(k=0x00; k < no_locations; k++) 
+{ 
+LPC_I2C0-> I2DAT = Send_Data[k]; 
+LPC_I2C0-> I2CONCLR = 0x08; 
+while(LPC_I2C0-> I2STAT != 0x28); 
+} 
+LPC_I2C0-> I2CONSET = 0x10; 
+LPC_I2C0-> I2CONCLR = 0x08; 
+delay(); 
+LPC_I2C0-> I2CONCLR = 0x40; 
+} 
+unsigned char I2CRead2402(unsigned char Slv_Addr,unsigned char word_adrs) 
+{ 
+unsigned char data; 
+LPC_I2C0-> I2CONSET = 0x40; 
+LPC_I2C0-> I2CONSET = 0x20; 
+while(LPC_I2C0-> I2STAT != 0x08); 
+LPC_I2C0-> I2CONCLR = 0x20; 
+LPC_I2C0-> I2DAT = 0xA0;  
+LPC_I2C0-> I2CONCLR = 0x08;  
+while(LPC_I2C0-> I2STAT != 0x18); 
+LPC_I2C0-> I2DAT = word_adrs; 
+LPC_I2C0-> I2CONCLR = 0x08; 
+while(LPC_I2C0-> I2STAT != 0x28); 
+LPC_I2C0-> I2CONCLR = 0x40;  
+LPC_I2C0-> I2CONCLR = 0x08; 
+LPC_I2C0-> I2CONSET = 0x40; 
+LPC_I2C0-> I2CONSET = 0x20; 
+while(LPC_I2C0-> I2STAT != 0x08); 
+LPC_I2C0-> I2CONCLR = 0x20; 
+LPC_I2C0-> I2DAT = Slv_Addr;  
+LPC_I2C0-> I2CONCLR = 0x08; 
+while(LPC_I2C0-> I2STAT != 0x40); 
+LPC_I2C0-> I2CONSET = 0x04;  
+LPC_I2C0-> I2CONCLR = 0x08; 
+while(LPC_I2C0-> I2STAT != 0x50); 
+data = LPC_I2C0-> I2DAT ;  
+LPC_I2C0-> I2CONCLR = 0x04; 
+LPC_I2C0-> I2CONSET = 0x10; 
+LPC_I2C0-> I2CONCLR = 0x08; 
+LPC_I2C0-> I2CONCLR = 0x40; 
+return(data); 
+} 
+void LED_display(unsigned char Slv_Addr, unsigned char Data) 
+{ 
+LPC_I2C0-> I2CONSET = 0x40; 
+LPC_I2C0-> I2CONSET = 0x20; 
+while((LPC_I2C0-> I2STAT != 0x08)); 
+LPC_I2C0-> I2CONCLR = 0x20;  
+LPC_I2C0-> I2DAT = Slv_Addr;  
+LPC_I2C0-> I2CONCLR = 0x08; 
+while((LPC_I2C0-> I2STAT != 0x18)); 
+LPC_I2C0-> I2DAT = Data; 
+LPC_I2C0-> I2CONCLR = 0x08;  
+while((LPC_I2C0-> I2STAT != 0x28)); 
+LPC_I2C0-> I2CONSET = 0x10; 
+LPC_I2C0-> I2CONCLR = 0x08; 
+LPC_I2C0-> I2CONCLR = 0x40; 
+} 
+void delay() 
+{ 
+unsigned int i,j; 
+for(j=0; j<0x300; j++) 
+for(i=0x00; i<=9999; i++);
+}
